@@ -34,10 +34,13 @@ class LibraryGenerator(object):
         if platform == "CUDA":
             src = tempfile.NamedTemporaryFile(mode="w", suffix=".cu", delete=False)
             compute_version = arch.compute_capability
+            if hasattr(arch, "sm_version") and arch.sm_version != -1:
+                compute_version = str(arch.sm_version)
             libpath = src.name.replace(".cu", ".so")
 
             command = [
                 "nvcc",
+                "-ccbin", "g++",
                 "-std=c++17",
                 "-Xcudafe",
                 "--diag_suppress=177",

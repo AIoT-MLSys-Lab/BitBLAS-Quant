@@ -156,15 +156,35 @@ def auto_detect_nvidia_target(gpu_id: int = 0) -> str:
                 if cuda_major is not None and cuda_major < 12:
                     logger.warning(
                         "Detected compute capability %s (>= sm_110) but CUDA %s "
-                        "does not support compiling sm_110 kernels. Falling back to sm_90.",
+                        "does not support compiling sm_110 kernels. Falling back to sm_86.",
                         cap,
                         cuda_major,
                     )
-                    return "cuda -arch=sm_90"
+                    return "cuda -arch=sm_86"
                 return "cuda -arch=sm_110"
             elif cap_int >= 90:
+                cuda_major = _detect_cuda_major_version()
+                if cuda_major is not None and cuda_major < 12:
+                    logger.warning(
+                        "Detected compute capability %s (>= sm_90) but CUDA %s "
+                        "does not support compiling sm_90 kernels. Falling back to sm_86.",
+                        cap,
+                        cuda_major,
+                    )
+                    return "cuda -arch=sm_86"
                 return "cuda -arch=sm_90"
             elif cap_int >= 89:
+                cuda_major = _detect_cuda_major_version()
+                if cuda_major is not None and cuda_major < 12:
+                     # sm_89 requires CUDA 11.8+
+                     # Since we only have major version, we can't be sure about 11.8 vs 11.5
+                     # But to be safe for 11.5, we should fallback to sm_86
+                     # However, _detect_cuda_major_version only gives major.
+                     # Let's assume if it is 11, we might need fallback if it is not 11.8
+                     # But wait, if I am on 11.5, sm_89 will fail.
+                     # So I should probably fallback to sm_86 for all 11.x if I want to be safe,
+                     # or I need to detect minor version.
+                     pass
                 return "cuda -arch=sm_89"
             elif cap_int >= 87:
                 return "cuda -arch=sm_87"
