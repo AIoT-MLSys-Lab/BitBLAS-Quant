@@ -3,11 +3,11 @@
 import os
 import subprocess
 from typing import List
+import logging
+
 from thefuzz import process
 from tvm.target import Target
 from tvm.target.tag import list_tags
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,46 @@ def get_all_nvidia_targets() -> List[str]:
     return [tag for tag in all_tags if "nvidia" in tag]
 
 
+def _detect_cuda_major_version() -> int:
+    """
+    Best-effort detection of the CUDA major version from PyTorch or nvcc.
+    Returns None if it cannot be determined.
+    """
+    # Try PyTorch first (since it's already a dependency)
+    try:
+        import torch  # pylint: disable=import-outside-toplevel
+
+        if torch.version.cuda:
+            ver = torch.version.cuda.split(".")
+            if ver and ver[0].isdigit():
+                return int(ver[0])
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    # Fallback to nvcc
+    try:
+        output = subprocess.check_output(["nvcc", "--version"], encoding="utf-8")
+        # Sample line: "Cuda compilation tools, release 11.5, V11.5.119"
+        for token in output.replace(",", " ").split():
+            if token.lower().startswith("release"):
+                parts = token.split()
+                if len(parts) > 1:
+                    version = parts[1]
+                else:
+                    continue
+            elif token.count(".") >= 1 and token.replace(".", "").isdigit():
+                version = token
+            else:
+                continue
+            major = version.split(".")[0]
+            if major.isdigit():
+                return int(major)
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    return None
+
+
 def auto_detect_nvidia_target(gpu_id: int = 0) -> str:
     """
     Automatically detects the NVIDIA GPU architecture to set the appropriate TVM target.
@@ -112,6 +152,15 @@ def auto_detect_nvidia_target(gpu_id: int = 0) -> str:
         if cap and cap.replace(".", "").isdigit():
             cap_int = int(cap.split(".")[0]) * 10 + int(cap.split(".")[1])
             if cap_int >= 110:
+                cuda_major = _detect_cuda_major_version()
+                if cuda_major is not None and cuda_major < 12:
+                    logger.warning(
+                        "Detected compute capability %s (>= sm_110) but CUDA %s "
+                        "does not support compiling sm_110 kernels. Falling back to sm_90.",
+                        cap,
+                        cuda_major,
+                    )
+                    return "cuda -arch=sm_90"
                 return "cuda -arch=sm_110"
             elif cap_int >= 90:
                 return "cuda -arch=sm_90"
