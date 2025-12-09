@@ -87,6 +87,14 @@ def benchmark_quantized(
     def op():
         return matmul(activation, packed_weight)
 
+    # Validation step
+    output = op()
+    if torch.all(output == 0):
+        raise RuntimeError(
+            f"Benchmark validation failed: Output is all zeros for shape M={M}, N={N}, K={K}. "
+            "This indicates the kernel is not executing correctly (likely architecture mismatch)."
+        )
+
     return _time_cuda_op(op, warmup, runs)
 
 

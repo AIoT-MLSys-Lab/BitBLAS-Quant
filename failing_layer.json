@@ -1,0 +1,5 @@
+pi0.5 duquant llm + dit mlp layers
+[DUQUANT] SCOPE filter: ''
+[DUQUANT] Matched Linear layers: 1
+[DUQUANT][REPLACED] paligemma_with_expert.paligemma.model.language_model.layers.0.self_attn.k_proj: Linear(2048->256) -> DuQuantLinear W4 A8 perm=True block_in=64 block_out=64 row_rot=restore
+[DUQUANT] Total layers replaced: 1

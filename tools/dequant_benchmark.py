@@ -103,6 +103,9 @@ def benchmark_quantized(
         with_zeros=False,
         zeros_mode=None,
     )
+    print(f"DEBUG: Config: {config}")
+    import sys
+    sys.stdout.flush()
     matmul = Matmul(config, target=target, enable_tuning=False)
 
     if tune:
@@ -114,6 +117,17 @@ def benchmark_quantized(
 
     def op():
         return matmul(activation, packed_weight)
+
+    # Validation step
+    output = op()
+    if torch.all(output == 0):
+        print(f"DEBUG: A stats: min={activation.min()}, max={activation.max()}, mean={activation.float().mean()}")
+        print(f"DEBUG: W stats: min={weight.min()}, max={weight.max()}, mean={weight.float().mean()}")
+        print(f"DEBUG: Output stats: min={output.min()}, max={output.max()}, mean={output.float().mean()}")
+        raise RuntimeError(
+            f"Benchmark validation failed: Output is all zeros for shape M={M}, N={N}, K={K}. "
+            "This indicates the kernel is not executing correctly (likely architecture mismatch)."
+        )
 
     return _time_cuda_op(op, warmup, runs)
 
@@ -238,15 +252,20 @@ def main():
 
     torch.manual_seed(args.seed)
     shapes = parse_layer_log(args.layer_log, args.batch)
-    target = auto_detect_nvidia_target()
+    import os
+    target = os.environ.get("TVM_TARGET")
+    if not target:
+        target = auto_detect_nvidia_target()
+    print(f"Using target: {target}")
 
     results = []
     for shape in shapes:
         print(
             f"Benchmarking {shape.name} ({shape.wa_label}) count={shape.count}"
         )
-        fp16_ms = benchmark_fp16(shape.batch, shape.out_features, shape.in_features,
-                                 args.warmup, args.runs)
+        # fp16_ms = benchmark_fp16(shape.batch, shape.out_features, shape.in_features,
+        #                          args.warmup, args.runs)
+        fp16_ms = 0.0
         quant_ms = benchmark_quantized(
             shape.batch,
             shape.out_features,
